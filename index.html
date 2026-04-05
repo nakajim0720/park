@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>受付フォーム</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+
+<div class="container">
+    <h1>受付情報の入力</h1>
+    <form id="entryForm" onsubmit="return false;">
+        <label class="required">代表者氏名</label>
+        <input type="text" id="repName" required placeholder="例：山田 太郎">
+
+        <label class="required">代表者連絡先</label>
+        <input type="tel" id="repContact" required placeholder="例：090-1234-5678">
+
+        <label id="labelOrgName">学校名・法人名 (プレイヤー区分に学生や法人が含まれる場合必須)</label>
+        <input type="text" id="orgName" placeholder="例：〇〇株式会社">
+
+        <label class="required">人数(半角数字)</label>
+        <input type="number" id="totalCount" inputmode="numeric" placeholder="例）25" pattern="[0-9]*" min="1" value="1" required onchange="generatePlayerFields()">
+
+        <div id="playersContainer"></div>
+
+        <label class="required">希望レーン数</label>
+        <input type="number" id="laneCount" min="1" value="1" required>
+
+        <label class="required">希望ゲーム数</label>
+        <input type="number" id="gameCount" min="1" value="1" required>
+
+        <button id="submitBtn" onclick="processRegistration()">QRコードを発行する</button>
+    </form>
+</div>
+
+<div id="qrModal">
+    <div class="qr-content">
+        <p>以下のQRコードを受付にご提示ください</p>
+        <div class="qr-id-text" id="displayId">Loading...</div>
+        <div id="qrcode"></div>
+        <div style="background-color: #f8d7da; color: #721c24; padding: 10px; margin-top: 15px; border-radius: 4px; font-size: 14px; font-weight: bold;">
+            【重要】<br>上のQRコードを「長押し」して、写真アプリに保存してください。スクリーンショットでも可能です。
+        </div>
+        <button class="close-btn" onclick="location.reload()">閉じる</button>
+    </div>
+</div>
+
+<iframe name="hidden_iframe" id="hidden_iframe" style="display:none;"></iframe>
+
+<script>
+    // --- Googleフォーム設定エリア ---
+    const GOOGLE_FORM_ACTION_URL = "https://docs.google.com/forms/u/0/d/1HreQl3kqUJfv6aqbPjloXQESsSaEYEM4FV29zNSZf_w/formResponse";
+    const ENTRY_IDS = {
+        repName:    "entry.232845505", 
+        repContact: "entry.377039865",
+        orgName:    "entry.607614426",
+        totalCount: "entry.1436761088",
+        playerCsv:  "entry.434860656",
+        laneCount:  "entry.770778616",
+        gameCount:  "entry.1404226913",
+        uniqueId:   "entry.692126373" 
+    };
+
+    // ==========================================
+    // 公開鍵の設定（public.pemの中身を貼り付ける）
+    // ==========================================
+    const PUBLIC_KEY = `-----BEGIN PUBLIC KEY-----
+MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAkcWzmt1W2FHaPVw9cSYJ
+hMoXZDXXT8t3uoTqvJEBVD+OWYr8LpG3IjIHQPYl9pQSwoWj4LeO00Suh7bvzCwN
+GYVPi8o9hZ4IApB+x1yNlp2USS9/2v+pZzCKEBMGJK84v87AThwlPJdt7HJSJdWB
+p30TwLa1ZNAQ9QZmuxTlGtUv+XEoflDicDST63OLJpf2r5uXMUNTN1pbVGvq48ts
+HE+SxAD3cFWJmwngx0dOVZfdfWOaCDNAIVrhv3f+NF90VB2GLNrEnII+t+p4/dOw
+AnmSdfkjyvUTwz2wwr+zdZXf/4kp5aW1N434cLlAREJjgpLpswBNkACgPocrBP9f
+rwIDAQAB
+-----END PUBLIC KEY-----`;
+
+    // ==========================================
+    // ★ 変更: PEM形式の公開鍵をWeb Crypto API用にインポートする関数
+    // ==========================================
+    async function importPublicKey(pem) {
+        const pemHeader = "-----BEGIN PUBLIC KEY-----";
+        const pemFooter = "-----END PUBLIC KEY-----";
+        const pemContents = pem.substring(pemHeader.length, pem.length - pemFooter.length).replace(/\s/g, '');
+        
+        const binaryDerString = window.atob(pemContents);
+        const binaryDer = new Uint8Array(binaryDerString.length);
+        for (let i = 0; i < binaryDerString.length; i++) {
+            binaryDer[i] = binaryDerString.charCodeAt(i);
+        }
+
+        // RSA-OAEP と SHA-256 を指定してインポート
+        return await window.crypto.subtle.importKey(
+            "spki",
+            binaryDer.buffer,
+            { name: "RSA-OAEP", hash: "SHA-256" },
+            true,
+            ["encrypt"]
+        );
+    }
+
+    // ==========================================
+    // ★ 変更: RSA-OAEP方式で暗号化を実行する関数
+    // ==========================================
+    async function encryptData(text, cryptoKey) {
+        if (!text) return "";
+        try {
+            const encoder = new TextEncoder();
+            const data = encoder.encode(text);
+            
+            // 暗号化を実行
+            const encryptedBuffer = await window.crypto.subtle.encrypt(
+                { name: "RSA-OAEP" },
+                cryptoKey,
+                data
+            );
+            
+            // 結果をBase64文字列に変換
+            let binary = '';
+            const bytes = new Uint8Array(encryptedBuffer);
+            for (let i = 0; i < bytes.byteLength; i++) {
+                binary += String.fromCharCode(bytes[i]);
+            }
+            return window.btoa(binary);
+        } catch (error) {
+            console.error("暗号化に失敗しました:", error);
+            return text; // 万が一失敗した場合はそのまま返す（フェイルセーフ）
+        }
+    }
+
+    window.onload = function() { generatePlayerFields(); };
+
+    function generatePlayerFields() {
+        const count = document.getElementById('totalCount').value;
+        const container = document.getElementById('playersContainer');
+        container.innerHTML = ''; 
+
+        for (let i = 1; i <= count; i++) {
+            const html = `
+                <div class="player-block">
+                    <h3>プレイヤー ${i}</h3>
+                    <label class="required">プレイヤー名</label>
+                    <input type="text" class="p-name"
+                    placeholder="プレイヤー名" required>
+                    <label class="required">区分</label>
+                    <select class="p-type">
+                        <option value="一般">一般</option>
+                        <option value="法人">法人</option>
+                        <option value="大学生・専門学生">大学生・専門学生</option>
+                        <option value="高校生以下">高校生以下</option>
+                    </select>
+                    <label class="required">カード</label>
+                    <select class="p-card">
+                        <option value="無し">無し</option>
+                        <option value="プラチナ">プラチナ</option>
+                        <option value="ゴールド">ゴールド</option>
+                        <option value="クラブJ">クラブJ</option>
+                    </select>
+                </div>
+            `;
+            container.insertAdjacentHTML('beforeend', html);
+        }
+    }
+    
+    function sanitize(str) {
+        if (!str) return "";
+        return "'" + String(str);
+    }
+    
+    // ★ 変更: async 関数に変更（Web Crypto APIが非同期処理のため）
+    async function processRegistration() {
+        const form = document.getElementById('entryForm');
+        const orgInput = document.getElementById('orgName');
+        const orgLabel = document.getElementById('labelOrgName');
+        
+        const types = document.querySelectorAll('.p-type');
+        let isOrgRequired = false;
+        
+        types.forEach(select => {
+            const val = select.value;
+            if (val === "法人" || val === "大学生・専門学生" || val === "高校生以下") {
+                isOrgRequired = true;
+            }
+        });
+
+        if (isOrgRequired) {
+            orgInput.required = true;
+            orgLabel.textContent = "学校名・法人名 (必須)";
+            orgLabel.classList.add("required");
+        } else {
+            orgInput.required = false;
+            orgLabel.textContent = "学校名・法人名 (任意)";
+            orgLabel.classList.remove("required");
+        }
+
+        if (!form.checkValidity()) {
+            form.reportValidity();
+            return;
+        }
+
+        const repName = sanitize(document.getElementById('repName').value);
+        const repContact = sanitize(document.getElementById('repContact').value);
+        const orgName = sanitize(document.getElementById('orgName').value);
+        const totalCount = document.getElementById('totalCount').value;
+        const laneCount = document.getElementById('laneCount').value;
+        const gameCount = document.getElementById('gameCount').value;
+
+        // ★ 変更: 公開鍵のインポートと暗号化処理（awaitを使用）
+        let cryptoKey;
+        try {
+            cryptoKey = await importPublicKey(PUBLIC_KEY);
+        } catch (e) {
+            console.error("公開鍵の読み込みエラー:", e);
+            alert("システムの初期化に失敗しました。");
+            return;
+        }
+
+        const encryptedName = await encryptData(repName, cryptoKey);
+        const encryptedContact = await encryptData(repContact, cryptoKey);
+        const encryptedOrgName = await encryptData(orgName, cryptoKey);
+
+        let csvContent = "'";
+        const names = document.querySelectorAll('.p-name');
+        const pTypes = document.querySelectorAll('.p-type');
+        const cards = document.querySelectorAll('.p-card');
+
+        for (let i = 0; i < names.length; i++) {
+            let safeName = names[i].value.replace(/,/g, '，').replace(/\//g, '／');
+            let row = `${safeName},${pTypes[i].value},${cards[i].value}`;
+            csvContent += row + "/";
+        }
+
+        console.log("--- 送信データ確認 ---");
+        console.log("代表者氏名:", encryptedName);
+        console.log("連絡先:", encryptedContact);
+        console.log("学校・法人:", encryptedOrgName);
+        console.log("必須判定:", isOrgRequired ? "必須" : "任意");
+        console.log("人数:", totalCount);
+        console.log("レーン数:", laneCount);
+        console.log("ゲーム数:", gameCount);
+        console.log("プレイヤーCSV:\n", csvContent);
+        
+        const now = new Date();
+        const ymd = `${now.getFullYear()}${(now.getMonth()+1).toString().padStart(2,'0')}${now.getDate().toString().padStart(2,'0')}`;
+        const time = `${now.getHours().toString().padStart(2,'0')}${now.getMinutes().toString().padStart(2,'0')}${now.getSeconds().toString().padStart(2,'0')}`;
+
+        function generateSecureID(length = 6) {
+            const charset = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+            let result = "";
+            const randomValue = new Uint8Array(1); 
+
+            while (result.length < length) {
+                crypto.getRandomValues(randomValue);
+                if (randomValue[0] < 252) {
+                    result += charset[randomValue[0] % charset.length];
+                }
+            }
+            return result;
+        }
+        const random = generateSecureID();
+
+        const uniqueId = `${ymd}-${time}-${random}`;
+        console.log("発行ID:", uniqueId);
+
+        document.getElementById('displayId').innerText = uniqueId; 
+        
+        const qrContainer = document.getElementById('qrcode');
+        qrContainer.innerHTML = ""; 
+
+        const scale = 8; 
+
+        const tempDiv = document.createElement('div');
+        new QRCode(tempDiv, {
+            text: uniqueId,
+            width: 200 * scale,
+            height: 200 * scale,
+            correctLevel : QRCode.CorrectLevel.H 
+        });
+
+        setTimeout(() => {
+            const qrCanvas = tempDiv.querySelector('canvas');
+            if(!qrCanvas) return;
+
+            const finalCanvas = document.createElement('canvas');
+            finalCanvas.width = 280 * scale;  
+            finalCanvas.height = 320 * scale; 
+            const ctx = finalCanvas.getContext('2d');
+
+            ctx.scale(scale, scale);
+
+            ctx.fillStyle = "#ffffff";
+            ctx.fillRect(0, 0, 280, 320);
+
+            ctx.drawImage(qrCanvas, 40, 30, 200, 200);
+
+            ctx.fillStyle = "#333333";
+            ctx.font = "bold 20px 'Helvetica Neue', Arial, sans-serif";
+            ctx.textAlign = "center";
+            ctx.fillText(uniqueId, 140, 270); 
+
+            ctx.font = "12px 'Helvetica Neue', Arial, sans-serif";
+            ctx.fillStyle = "#666666";
+            ctx.fillText("受付時にこの画像をご提示ください", 140, 295);
+
+            const logo = new Image();
+            logo.src = './img/park_30.png'; 
+            logo.crossOrigin = "Anonymous";
+
+            logo.onload = () => {
+                const logoSize = 60; 
+                const x = 40 + (200 - logoSize) / 2;
+                const y = 35 + (200 - logoSize) / 2;
+                
+                ctx.drawImage(logo, x, y, logoSize, logoSize);
+                ctx.restore();
+
+                displayFinalImage(finalCanvas, qrContainer);
+            };
+
+            logo.onerror = () => {
+                displayFinalImage(finalCanvas, qrContainer);
+            };
+
+        }, 100);
+
+        function displayFinalImage(canvas, container) {
+            const img = document.createElement('img');
+            img.src = canvas.toDataURL("image/png");
+            
+            img.style.width = "280px";
+            img.style.height = "auto";
+            img.style.pointerEvents = "auto"; 
+            img.style.userSelect = "none";
+            img.style.webkitTouchCallout = "default";
+            
+            img.style.borderRadius = "8px";
+            img.style.boxShadow = "0 4px 10px rgba(0,0,0,0.15)";
+            img.style.border = "1px solid #eee";
+
+            container.appendChild(img);
+        }
+
+        sendDataToGoogleForm(uniqueId, encryptedName, encryptedContact, encryptedOrgName, totalCount, laneCount, gameCount, csvContent);
+    }
+
+   function sendDataToGoogleForm(uid, rName, rContact, oName, tCount, lCount, gCount, csv) {
+        const formData = new FormData();
+        formData.append(ENTRY_IDS.uniqueId, uid);
+        formData.append(ENTRY_IDS.repName, rName);
+        formData.append(ENTRY_IDS.repContact, rContact);
+        formData.append(ENTRY_IDS.orgName, oName);
+        formData.append(ENTRY_IDS.totalCount, tCount);
+        formData.append(ENTRY_IDS.laneCount, lCount);
+        formData.append(ENTRY_IDS.gameCount, gCount);
+        formData.append(ENTRY_IDS.playerCsv, csv);
+
+        fetch(GOOGLE_FORM_ACTION_URL, {
+            method: 'POST',
+            mode: 'no-cors',
+            body: formData
+        })
+        .then(() => {
+            console.log("Googleフォームへの送信が完了しました");
+            document.getElementById('qrModal').style.display = 'flex';
+        })
+        .catch((error) => {
+            console.error("送信に失敗しました:", error);
+            alert("通信エラーが発生しました。電波の良いところで再度お試しください。");
+        });
+    }
+
+</script>
+
+</body>
+</html>
