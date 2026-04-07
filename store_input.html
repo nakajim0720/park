@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>【店舗用】受付発券システム</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <link rel="stylesheet" href="./style.css" />
+    
+    <style>
+        body { margin: 0; padding: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center; background-color: #f4f7f6; }
+        #start-view { display: flex; flex-direction: column; align-items: center; justify-content: center; width: 100vw; height: 100vh; background-color: #f4f7f6; position: absolute; top: 0; left: 0; z-index: 10; }
+        .start-title { font-size: 32px; color: #333; margin-bottom: 10px; font-weight: bold; }
+        .start-subtitle { font-size: 18px; color: #666; margin-bottom: 50px; }
+        .btn-start { width: auto; min-width: 350px; max-width: 90vw; font-size: 32px; font-weight: bold; padding: 35px 60px; background-color: #28a745; color: white; border: none; border-radius: 20px; box-shadow: 0 10px 30px rgba(40,167,69,0.3); cursor: pointer; transition: transform 0.2s; }
+        .btn-start:active { transform: scale(0.95); }
+        #input-view { display: none; width: 100%; max-width: 600px; padding: 20px; box-sizing: border-box; z-index: 1; }
+        .store-header { background-color: #343a40; color: white; padding: 15px; text-align: center; font-weight: bold; font-size: 20px; margin-bottom: 20px; border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+        .receipt-preview { background: white; width: 72mm; box-sizing: border-box; padding: 15px 10px; margin: 0 auto; border: 1px dashed #ccc; text-align: center; color: #000; }
+        .receipt-header { font-size: 20px; font-weight: bold; margin-bottom: 5px; border-bottom: 1px dashed #000; padding-bottom: 10px; }
+        .receipt-time { font-size: 13px; margin-bottom: 15px; color: #333; }
+        .receipt-note { font-size: 13px; margin-top: 15px; border-top: 1px dashed #000; padding-top: 10px; text-align: left; line-height: 1.5; }
+        @media print {
+            @page { size: 80mm auto; margin: 0; }
+            body * { visibility: hidden; }
+            #print-area, #print-area * { visibility: visible; }
+            #print-area { position: absolute; left: 0; top: 0; width: 80mm; margin: 0; padding: 4mm; border: none; text-align: center; box-sizing: border-box; }
+            .no-print { display: none !important; }
+        }
+    </style>
+</head>
+<body>
+
+<div id="start-view" class="no-print">
+    <div class="start-title">🎳 ボウリング受付発券機</div>
+    <div class="start-subtitle">画面をタッチして受付を開始してください</div>
+    <button class="btn-start" onclick="startReception()">受付を始める</button>
+</div>
+
+<div id="input-view" class="container no-print">
+    <div class="store-header">
+        店頭受付・QR発券端末
+    </div>
+    
+    <div class="alert-box" style="background-color: #d1ecf1; border-color: #bee5eb; color: #0c5460;">
+        <div class="alert-title" style="color: #0c5460;">【お客様へ】</div>
+        <ul style="margin: 0; padding-left: 20px;">
+            <li>情報を入力して「送信」を押すと、<strong>QRコード付きの受付票（レシート）</strong>が自動で印刷されます。</li>
+            <li>印刷されたレシートをフロントスタッフへお渡しください。</li>
+        </ul>
+    </div>
+
+    <form id="entryForm" onsubmit="return false;">
+        <label class="required">代表者氏名</label>
+        <input type="text" id="repName" required placeholder="例：山田 太郎">
+
+        <label class="required">代表者連絡先</label>
+        <input type="tel" id="repContact" required placeholder="例：090-1234-5678" onblur="formatPhone(this)">
+
+        <label id="labelOrgName">学校名・法人名 (プレイヤー区分に学生や法人が含まれる場合必須)</label>
+        <input type="text" id="orgName" placeholder="例：〇〇株式会社">
+
+        <label class="required">人数(半角数字)</label>
+        <input type="number" id="totalCount" inputmode="numeric" placeholder="例）25" pattern="[0-9]*" min="1" value="1" required onchange="generatePlayerFields()">
+
+        <div id="playersContainer"></div>
+
+        <label class="required">希望レーン数</label>
+        <input type="number" id="laneCount" min="1" value="1" required>
+
+        <label class="required">希望ゲーム数</label>
+        <input type="number" id="gameCount" min="1" value="1" required>
+
+        <div style="display: flex; gap: 10px; margin-top: 30px;">
+            <button type="button" class="btn-gray" style="flex: 1;" onclick="location.reload()">最初に戻る</button>
+            <button id="submitBtn" class="btn-primary" style="flex: 2; margin-top: 0;" onclick="showConfirmModal()">入力内容を確認する</button>
+        </div>
+    </form>
+</div>
+
+<div id="confirmModal" class="modal-overlay no-print">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>ご入力内容の確認</h3>
+            <button class="modal-close" onclick="closeConfirmModal()">×</button>
+        </div>
+        <div id="confirmModalBody" class="confirm-body"></div>
+        <div class="modal-actions">
+            <button class="btn-gray" onclick="closeConfirmModal()">修正する</button>
+            <button id="confirmSubmitBtn" class="btn-green" onclick="processRegistration()">送信して発券する</button>
+        </div>
+    </div>
+</div>
+
+<div id="qrModal" class="modal-overlay">
+    <div class="modal-content" style="background: #f4f7f6; min-height: 400px; display: flex; flex-direction: column; justify-content: center; align-items: center;">
+        
+        <p class="no-print" style="font-size: 20px; font-weight: bold; color: #28a745; margin-top: 0; margin-bottom: 20px;">
+            発券処理が完了しました！<br>
+            <span style="font-size: 16px; color: #333; font-weight: normal;">印刷されたレシートをお取りください。</span>
+        </p>
+
+        <div id="print-area" class="receipt-preview">
+            <div class="receipt-header">ボウリング受付票</div>
+            <div class="receipt-time" id="print-datetime"></div>
+            
+            <p style="font-size: 15px; font-weight: bold; margin-bottom: 5px;">受付ID</p>
+            <div class="qr-id-text" id="displayId" style="font-size: 18px; margin-bottom: 15px; word-break: break-all;">Loading...</div>
+            
+            <div id="qrcode" style="display: flex; justify-content: center;"></div>
+            
+            <div class="receipt-note">
+                【お客様へのお願い】<br>
+                この用紙をフロントまでお持ちください。<br>
+                ※お呼び出し時に不在の場合は、次のお客様をご案内する場合がございます。
+            </div>
+        </div>
+
+        <div class="no-print" style="margin-top: 30px; text-align: center; width: 100%;">
+            <p style="color: #888; font-size: 14px; margin-bottom: 15px;">
+                <i class="fa-solid fa-spinner fa-spin"></i> まもなく最初の画面に自動で戻ります...
+            </p>
+            <button class="btn-gray" style="font-size: 14px; padding: 10px;" onclick="window.print()">
+                （エラー時）レシートを再印刷する
+            </button>
+        </div>
+
+    </div>
+</div>
+
+<script>
+    const GOOGLE_FORM_ACTION_URL = "https://docs.google.com/forms/u/0/d/1HreQl3kqUJfv6aqbPjloXQESsSaEYEM4FV29zNSZf_w/formResponse";
+    const ENTRY_IDS = {
+        repName:    "entry.232845505", 
+        repContact: "entry.377039865",
+        orgName:    "entry.607614426",
+        totalCount: "entry.1436761088",
+        playerCsv:  "entry.434860656",
+        laneCount:  "entry.770778616",
+        gameCount:  "entry.1404226913",
+        uniqueId:   "entry.692126373" 
+    };
+
+    const PUBLIC_KEY_PEM = `-----BEGIN PUBLIC KEY-----
+MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAkcWzmt1W2FHaPVw9cSYJ
+hMoXZDXXT8t3uoTqvJEBVD+OWYr8LpG3IjIHQPYl9pQSwoWj4LeO00Suh7bvzCwN
+GYVPi8o9hZ4IApB+x1yNlp2USS9/2v+pZzCKEBMGJK84v87AThwlPJdt7HJSJdWB
+p30TwLa1ZNAQ9QZmuxTlGtUv+XEoflDicDST63OLJpf2r5uXMUNTN1pbVGvq48ts
+HE+SxAD3cFWJmwngx0dOVZfdfWOaCDNAIVrhv3f+NF90VB2GLNrEnII+t+p4/dOw
+AnmSdfkjyvUTwz2wwr+zdZXf/4kp5aW1N434cLlAREJjgpLpswBNkACgPocrBP9f
+rwIDAQAB
+-----END PUBLIC KEY-----`;
+
+    // ==========================================
+    // ネイティブ Web Crypto API による暗号化処理
+    // ==========================================
+    async function importPublicKey(pem) {
+        const pemHeader = "-----BEGIN PUBLIC KEY-----";
+        const pemFooter = "-----END PUBLIC KEY-----";
+        const pemContents = pem.substring(pemHeader.length, pem.length - pemFooter.length - 1).replace(/\s/g, '');
+        
+        const binaryDerString = window.atob(pemContents);
+        const binaryDer = new Uint8Array(binaryDerString.length);
+        for (let i = 0; i < binaryDerString.length; i++) {
+            binaryDer[i] = binaryDerString.charCodeAt(i);
+        }
+
+        return await window.crypto.subtle.importKey(
+            "spki",
+            binaryDer.buffer,
+            { name: "RSA-OAEP", hash: "SHA-256" },
+            true,
+            ["encrypt"]
+        );
+    }
+
+    async function encryptData(text) {
+        if (!text) return "";
+        try {
+            const publicKey = await importPublicKey(PUBLIC_KEY_PEM);
+            const encoder = new TextEncoder();
+            const encodedText = encoder.encode(text);
+            
+            const encryptedBuffer = await window.crypto.subtle.encrypt(
+                { name: "RSA-OAEP" },
+                publicKey,
+                encodedText
+            );
+            
+            let binary = '';
+            const bytes = new Uint8Array(encryptedBuffer);
+            for (let i = 0; i < bytes.byteLength; i++) {
+                binary += String.fromCharCode(bytes[i]);
+            }
+            return window.btoa(binary);
+            
+        } catch (error) {
+            console.error("暗号化に失敗しました:", error);
+            alert("暗号化に失敗しました。HTTPS環境で実行されているか確認してください。");
+            return text; 
+        }
+    }
+
+    // ==========================================
+    // ★ 新規：電話番号の自動整形・ハイフン挿入
+    // ==========================================
+    function formatPhone(elem) {
+        let val = elem.value;
+        if (!val) return;
+        
+        // 1. 全角数字を半角に変換
+        val = val.replace(/[０-９]/g, function(s) {
+            return String.fromCharCode(s.charCodeAt(0) - 0xFEE0);
+        });
+        
+        // 2. 数字以外の文字（ハイフン含む）を一旦すべて削除
+        val = val.replace(/[^0-9]/g, '');
+
+        // 3. 桁数に合わせてハイフンを挿入
+        if (val.length === 11) {
+            val = val.replace(/(\d{3})(\d{4})(\d{4})/, '$1-$2-$3');
+        } else if (val.length === 10) {
+            if (val.startsWith('03') || val.startsWith('06')) {
+                val = val.replace(/(\d{2})(\d{4})(\d{4})/, '$1-$2-$3');
+            } else {
+                val = val.replace(/(\d{3})(\d{3})(\d{4})/, '$1-$2-$3');
+            }
+        }
+        
+        elem.value = val;
+    }
+
+    // ==========================================
+    // UI制御
+    // ==========================================
+    function startReception() {
+        document.getElementById('start-view').style.display = 'none';
+        document.getElementById('input-view').style.display = 'block';
+        window.scrollTo(0, 0);
+    }
+
+    window.onload = function() { generatePlayerFields(); };
+
+    function generatePlayerFields() {
+        const count = document.getElementById('totalCount').value;
+        const container = document.getElementById('playersContainer');
+        container.innerHTML = ''; 
+
+        for (let i = 1; i <= count; i++) {
+            const html = `
+                <div class="player-block">
+                    <h3>プレイヤー ${i}</h3>
+                    <label class="required">プレイヤー名</label>
+                    <input type="text" class="p-name" placeholder="プレイヤー名" required>
+                    <label class="required">区分</label>
+                    <select class="p-type" onchange="updateCardOptions(this)">
+                        <option value="一般">一般</option>
+                        <option value="法人">法人</option>
+                        <option value="大学生・専門学生">大学生・専門学生</option>
+                        <option value="高校生以下">高校生以下</option>
+                    </select>
+                    <label class="required">カード</label>
+                    <select class="p-card">
+                        <option value="無し">無し</option>
+                        <option value="プラチナ">プラチナ</option>
+                        <option value="ゴールド">ゴールド</option>
+                    </select>
+                </div>
+            `;
+            container.insertAdjacentHTML('beforeend', html);
+        }
+    }
+    
+    function updateCardOptions(typeSelect) {
+        const cardSelect = typeSelect.closest('.player-block').querySelector('.p-card');
+        const pType = typeSelect.value;
+        const currentCard = cardSelect.value; 
+        
+        cardSelect.innerHTML = '';
+        
+        let options = ["無し", "プラチナ"];
+        if (pType === "高校生以下") {
+            options.push("クラブJ");
+        } else {
+            options.push("ゴールド");
+        }
+        
+        options.forEach(opt => {
+            const option = document.createElement('option');
+            option.value = opt;
+            option.textContent = opt;
+            cardSelect.appendChild(option);
+        });
+        
+        if (options.includes(currentCard)) {
+            cardSelect.value = currentCard;
+        } else {
+            cardSelect.value = "無し";
+        }
+    }
+    
+    function sanitize(str) {
+        if (!str) return "";
+        return "'" + String(str);
+    }
+
+    function showConfirmModal() {
+        // ★ 確認画面へ進む前に、念のため電話番号の整形を実行
+        formatPhone(document.getElementById('repContact'));
+
+        const form = document.getElementById('entryForm');
+        const orgInput = document.getElementById('orgName');
+        const orgLabel = document.getElementById('labelOrgName');
+        
+        const types = document.querySelectorAll('.p-type');
+        let isOrgRequired = false;
+        
+        types.forEach(select => {
+            const val = select.value;
+            if (val === "法人" || val === "大学生・専門学生" || val === "高校生以下") {
+                isOrgRequired = true;
+            }
+        });
+
+        if (isOrgRequired) {
+            orgInput.required = true;
+            orgLabel.textContent = "学校名・法人名 (必須)";
+            orgLabel.classList.add("required");
+        } else {
+            orgInput.required = false;
+            orgLabel.textContent = "学校名・法人名 (任意)";
+            orgLabel.classList.remove("required");
+        }
+
+        if (!form.checkValidity()) {
+            form.reportValidity();
+            return;
+        }
+
+        const repName = document.getElementById('repName').value;
+        const repContact = document.getElementById('repContact').value;
+        const orgName = document.getElementById('orgName').value || "なし";
+        const totalCount = document.getElementById('totalCount').value;
+        const laneCount = document.getElementById('laneCount').value;
+        const gameCount = document.getElementById('gameCount').value;
+
+        let playersHtml = `<ul style="padding-left: 20px; margin-top: 5px; margin-bottom: 0;">`;
+        const names = document.querySelectorAll('.p-name');
+        const pTypes = document.querySelectorAll('.p-type');
+        const cards = document.querySelectorAll('.p-card');
+        for (let i = 0; i < names.length; i++) {
+            playersHtml += `<li><strong>${names[i].value}</strong> (${pTypes[i].value} / ${cards[i].value})</li>`;
+        }
+        playersHtml += `</ul>`;
+
+        const body = document.getElementById("confirmModalBody");
+        body.innerHTML = `
+            <p class="confirm-alert-text">以下の内容で発券します。よろしいですか？</p>
+            <div class="confirm-box">
+                <div class="confirm-item"><strong>代表者氏名:</strong> ${repName} 様</div>
+                <div class="confirm-item"><strong>連絡先:</strong> ${repContact}</div>
+                <div class="confirm-item"><strong>学校名・法人名:</strong> ${orgName}</div>
+                <div class="confirm-summary">
+                    <strong>ご希望内容:</strong> ${totalCount}名 / ${laneCount}レーン / ${gameCount}ゲーム
+                </div>
+                <div>
+                    <strong>プレイヤー一覧:</strong>
+                    ${playersHtml}
+                </div>
+            </div>
+        `;
+
+        document.getElementById("confirmModal").style.display = "flex";
+    }
+
+    function closeConfirmModal() {
+        document.getElementById("confirmModal").style.display = "none";
+    }
+    
+    async function processRegistration() {
+        const btn = document.getElementById("confirmSubmitBtn");
+        btn.disabled = true;
+        btn.innerText = "発券処理中...";
+
+        const repName = sanitize(document.getElementById('repName').value);
+        const repContact = sanitize(document.getElementById('repContact').value);
+        const orgName = sanitize(document.getElementById('orgName').value);
+        const totalCount = document.getElementById('totalCount').value;
+        const laneCount = document.getElementById('laneCount').value;
+        const gameCount = document.getElementById('gameCount').value;
+
+        const encryptedName = await encryptData(repName);
+        const encryptedContact = await encryptData(repContact);
+        const encryptedOrgName = await encryptData(orgName);
+
+        let csvContent = "'";
+        const names = document.querySelectorAll('.p-name');
+        const pTypes = document.querySelectorAll('.p-type');
+        const cards = document.querySelectorAll('.p-card');
+
+        for (let i = 0; i < names.length; i++) {
+            let safeName = names[i].value.replace(/,/g, '，').replace(/\//g, '／');
+            let row = `${safeName},${pTypes[i].value},${cards[i].value}`;
+            csvContent += row + "/";
+        }
+        
+        const now = new Date();
+        const ymd = `${now.getFullYear()}${(now.getMonth()+1).toString().padStart(2,'0')}${now.getDate().toString().padStart(2,'0')}`;
+        const time = `${now.getHours().toString().padStart(2,'0')}${now.getMinutes().toString().padStart(2,'0')}${now.getSeconds().toString().padStart(2,'0')}`;
+
+        function generateSecureID(length = 6) {
+            const charset = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+            let result = "";
+            const randomValue = new Uint8Array(1); 
+            while (result.length < length) {
+                crypto.getRandomValues(randomValue);
+                if (randomValue[0] < 252) {
+                    result += charset[randomValue[0] % charset.length];
+                }
+            }
+            return result;
+        }
+        const random = generateSecureID();
+        const uniqueId = `${ymd}-${time}-${random}`;
+
+        const printDateStr = `${now.getFullYear()}年${now.getMonth()+1}月${now.getDate()}日 ${now.getHours().toString().padStart(2,'0')}:${now.getMinutes().toString().padStart(2,'0')}`;
+        document.getElementById('print-datetime').innerText = `発券日時: ${printDateStr}`;
+
+        document.getElementById('displayId').innerText = uniqueId; 
+        
+        const qrContainer = document.getElementById('qrcode');
+        qrContainer.innerHTML = ""; 
+
+        const scale = 6; 
+        const tempDiv = document.createElement('div');
+        new QRCode(tempDiv, {
+            text: uniqueId,
+            width: 200 * scale,
+            height: 200 * scale,
+            correctLevel : QRCode.CorrectLevel.H 
+        });
+
+        setTimeout(() => {
+            const qrCanvas = tempDiv.querySelector('canvas');
+            if(!qrCanvas) return;
+
+            const finalCanvas = document.createElement('canvas');
+            finalCanvas.width = 220 * scale;  
+            finalCanvas.height = 220 * scale; 
+            const ctx = finalCanvas.getContext('2d');
+
+            ctx.scale(scale, scale);
+            ctx.fillStyle = "#ffffff";
+            ctx.fillRect(0, 0, 220, 220);
+            ctx.drawImage(qrCanvas, 10, 10, 200, 200);
+
+            const logo = new Image();
+            logo.src = './img/park_30.png'; 
+            logo.crossOrigin = "Anonymous";
+
+            logo.onload = () => {
+                const logoSize = 60; 
+                const x = 10 + (200 - logoSize) / 2;
+                const y = 10 + (200 - logoSize) / 2;
+                ctx.drawImage(logo, x, y, logoSize, logoSize);
+                ctx.restore();
+                displayFinalImage(finalCanvas, qrContainer);
+            };
+            logo.onerror = () => {
+                ctx.restore();
+                displayFinalImage(finalCanvas, qrContainer);
+            };
+        }, 100);
+
+        function displayFinalImage(canvas, container) {
+            const img = document.createElement('img');
+            img.src = canvas.toDataURL("image/png");
+            img.style.width = "60mm";
+            img.style.height = "auto";
+            container.appendChild(img);
+        }
+
+        sendDataToGoogleForm(uniqueId, encryptedName, encryptedContact, encryptedOrgName, totalCount, laneCount, gameCount, csvContent);
+    }
+
+   function sendDataToGoogleForm(uid, rName, rContact, oName, tCount, lCount, gCount, csv) {
+        const formData = new FormData();
+        formData.append(ENTRY_IDS.uniqueId, uid);
+        formData.append(ENTRY_IDS.repName, rName);
+        formData.append(ENTRY_IDS.repContact, rContact);
+        formData.append(ENTRY_IDS.orgName, oName);
+        formData.append(ENTRY_IDS.totalCount, tCount);
+        formData.append(ENTRY_IDS.laneCount, lCount);
+        formData.append(ENTRY_IDS.gameCount, gCount);
+        formData.append(ENTRY_IDS.playerCsv, csv);
+
+        fetch(GOOGLE_FORM_ACTION_URL, {
+            method: 'POST',
+            mode: 'no-cors',
+            body: formData
+        })
+        .then(() => {
+            closeConfirmModal();
+            document.getElementById('qrModal').style.display = 'flex';
+            
+            const btn = document.getElementById("confirmSubmitBtn");
+            btn.disabled = false;
+            btn.innerText = "送信して発券する";
+
+            setTimeout(() => {
+                window.print();
+                setTimeout(() => {
+                    location.reload();
+                }, 5000);
+            }, 800); 
+        })
+        .catch((error) => {
+            console.error("送信に失敗しました:", error);
+            alert("通信エラーが発生しました。");
+            const btn = document.getElementById("confirmSubmitBtn");
+            btn.disabled = false;
+            btn.innerText = "送信して発券する";
+        });
+    }
+</script>
+
+</body>
+</html>
