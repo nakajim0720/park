@@ -1,28 +1,298 @@
-        body { font-family: "Helvetica Neue", Arial, sans-serif; background-color: #f4f4f4; padding: 20px; color: #333; }
-        .container { max-width: 600px; margin: 0 auto; background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
-        h1 { text-align: center; margin-bottom: 20px; }
-        label { display: block; margin-top: 15px; font-weight: bold; font-size: 0.9em; }
-        /* 必須項目のラベルに赤字で「*」をつける */
-        /* label.required::after { content: " *"; color: red; } */
-        
-        input[type="text"], input[type="tel"], input[type="number"], select { width: 100%; padding: 12px; margin-top: 5px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; font-size: 16px; }
-        
-        .player-block { background: #f8f9fa; border-left: 4px solid #007bff; padding: 15px; margin-top: 15px; border-radius: 4px; }
-        .player-block h3 { margin-top: 0; font-size: 16px; color: #007bff; }
-        
-        button#submitBtn { width: 100%; background-color: #28a745; color: white; padding: 15px; border: none; border-radius: 4px; font-size: 18px; margin-top: 30px; cursor: pointer; font-weight: bold; }
-        button#submitBtn:hover { background-color: #218838; }
+/* =========================================
+   ベース設定
+   ========================================= */
+body {
+    font-family: 'Helvetica Neue', Arial, 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', Meiryo, sans-serif;
+    background-color: #f4f7f6;
+    color: #333333;
+    margin: 0;
+    padding: 20px;
+    display: flex;
+    justify-content: center;
+}
 
-        /* QRモーダル */
-        #qrModal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 1000; justify-content: center; align-items: center; flex-direction: column; }
-        .qr-content { background: white; padding: 30px; border-radius: 10px; text-align: center; max-width: 90%; }
-        
-        #qrcode { 
-            margin: 20px auto;
-            display: flex;            
-            justify-content: center;  
-            align-items: center;      
-        }
+.container {
+    background: #ffffff;
+    padding: 30px;
+    border-radius: 12px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+    width: 100%;
+    max-width: 600px;
+    box-sizing: border-box;
+}
 
-        .qr-id-text { font-size: 24px; font-weight: bold; color: #333; margin-bottom: 10px; letter-spacing: 2px; }
-        .close-btn { margin-top: 20px; padding: 10px 20px; background: #666; color: white; border: none; border-radius: 4px; cursor: pointer; }
+h1 {
+    text-align: center;
+    font-size: 24px;
+    margin-top: 0;
+    margin-bottom: 25px;
+    color: #222;
+}
+
+/* =========================================
+   フォーム要素
+   ========================================= */
+label {
+    display: block;
+    font-weight: bold;
+    margin-top: 20px;
+    margin-bottom: 8px;
+    font-size: 15px;
+}
+
+.required::after {
+    content: " *";
+    color: #d9534f;
+}
+
+input[type="text"],
+input[type="tel"],
+input[type="number"],
+select {
+    width: 100%;
+    padding: 12px;
+    border: 1px solid #cccccc;
+    border-radius: 6px;
+    box-sizing: border-box;
+    font-size: 16px;
+    transition: border-color 0.2s;
+}
+
+input:focus, select:focus {
+    border-color: #007bff;
+    outline: none;
+}
+
+/* プレイヤー入力エリア */
+.player-block {
+    background: #f8f9fa;
+    padding: 15px;
+    border-radius: 8px;
+    margin-top: 15px;
+    border: 1px solid #dee2e6;
+}
+
+.player-block h3 {
+    margin-top: 0;
+    margin-bottom: 10px;
+    font-size: 16px;
+    color: #555;
+    border-bottom: 2px solid #dee2e6;
+    padding-bottom: 5px;
+}
+
+/* =========================================
+   ボタン類
+   ========================================= */
+button {
+    width: 100%;
+    padding: 15px;
+    border: none;
+    border-radius: 8px;
+    font-size: 18px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: background-color 0.2s;
+    box-sizing: border-box;
+}
+
+.btn-primary {
+    background-color: #007bff;
+    color: white;
+    margin-top: 30px;
+}
+.btn-primary:hover { background-color: #0056b3; }
+
+.btn-gray { background-color: #6c757d; color: white; }
+.btn-gray:hover { background-color: #5a6268; }
+
+.btn-green { background-color: #28a745; color: white; }
+.btn-green:hover { background-color: #218838; }
+.btn-green:disabled { background-color: #8fce9e; cursor: not-allowed; }
+
+/* =========================================
+   注意書き・アラート
+   ========================================= */
+.alert-box {
+    background-color: #fff3cd;
+    color: #856404;
+    padding: 15px;
+    margin-bottom: 25px;
+    border-radius: 8px;
+    border: 1px solid #ffeeba;
+    font-size: 14px;
+    line-height: 1.6;
+}
+
+.alert-title {
+    color: #d39e00;
+    font-size: 16px;
+    font-weight: bold;
+    margin-bottom: 8px;
+}
+
+.alert-box strong { color: #d39e00; }
+.alert-box ul { margin: 0; padding-left: 20px; }
+.alert-box li { margin-bottom: 5px; }
+
+.trademark-note {
+    font-size: 11px; 
+    color: #888; 
+    text-align: center; 
+    margin-top: 20px;
+}
+
+.right-align {
+    text-align: right;
+    margin-top: 10px;
+}
+
+.text-danger {
+    color: #d9534f;
+    font-weight: bold;
+}
+
+/* =========================================
+   モーダル共通設定
+   ========================================= */
+.modal-overlay {
+    position: fixed; 
+    top: 0; left: 0; 
+    width: 100%; height: 100%;
+    background: rgba(0,0,0,0.6); 
+    display: none; 
+    justify-content: center; 
+    align-items: center;
+    z-index: 1000; 
+    padding: 20px; 
+    box-sizing: border-box;
+}
+
+.modal-content {
+    background: white; 
+    padding: 25px; 
+    border-radius: 12px; 
+    width: 100%; 
+    max-width: 500px;
+    max-height: 90vh; 
+    overflow-y: auto; 
+    box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+    position: relative;
+}
+
+.modal-header {
+    display: flex; 
+    justify-content: space-between; 
+    align-items: center; 
+    border-bottom: 2px solid #eee; 
+    padding-bottom: 15px; 
+    margin-bottom: 15px;
+}
+
+.modal-header h3 { 
+    margin: 0; 
+    font-size: 20px; 
+    color: #333; 
+}
+
+.modal-close {
+    background: none; 
+    border: none; 
+    font-size: 28px; 
+    cursor: pointer; 
+    color: #888; 
+    padding: 0; 
+    line-height: 1;
+    width: auto;
+}
+
+/* 確認画面用の中身 */
+.confirm-body {
+    font-size: 15px; 
+    line-height: 1.6; 
+    color: #444;
+}
+
+.confirm-alert-text {
+    margin-top: 0; 
+    margin-bottom: 15px; 
+    font-weight: bold; 
+    color: #d9534f;
+}
+
+.confirm-box {
+    background: #f8f9fa; 
+    padding: 15px; 
+    border-radius: 8px; 
+    border: 1px solid #dee2e6;
+}
+
+.confirm-item {
+    margin-bottom: 8px;
+}
+
+.confirm-summary {
+    margin-bottom: 12px; 
+    padding-bottom: 10px; 
+    border-bottom: 1px dashed #ccc;
+}
+
+.modal-actions {
+    display: flex; 
+    gap: 10px; 
+    margin-top: 25px;
+}
+
+.modal-actions button {
+    flex: 1;
+    margin-top: 0;
+}
+
+/* =========================================
+   QRコード表示画面
+   ========================================= */
+.qr-content {
+    background: white;
+    padding: 30px 20px;
+    border-radius: 12px;
+    max-width: 400px;
+    width: 100%;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.qr-title {
+    font-weight: bold;
+    font-size: 18px;
+    text-align: center;
+    margin-top: 0;
+}
+
+.qr-id-text {
+    font-size: 20px;
+    font-weight: bold;
+    color: #28a745;
+    letter-spacing: 1px;
+    margin-bottom: 15px;
+}
+
+#qrcode {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 10px;
+}
+
+.qr-alert {
+    background-color: #f8d7da;
+    color: #721c24;
+    padding: 15px;
+    margin-top: 20px;
+    border-radius: 8px;
+    font-size: 14px;
+    text-align: left;
+    line-height: 1.5;
+    width: 100%;
+    box-sizing: border-box;
+}

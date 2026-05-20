@@ -8,78 +8,26 @@
     <link rel="stylesheet" href="./style.css" />
     
     <style>
-        /* =========================================
-           スマホ用スタート画面の専用スタイル
-           ========================================= */
-        body {
-            margin: 0;
-            padding: 0;
-        }
-
+        body { margin: 0; padding: 0; }
         #start-view {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            min-height: 100vh;
-            width: 100%;
-            background-color: #f4f7f6;
-            position: absolute;
-            top: 0;
-            left: 0;
-            z-index: 10;
-            padding: 20px;
-            box-sizing: border-box;
-            text-align: center;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            min-height: 100vh; min-height: 100dvh;
+            width: 100%; background-color: #f4f7f6; position: absolute;
+            top: 0; left: 0; z-index: 10; padding: 20px; box-sizing: border-box; text-align: center;
         }
-
-        .start-title {
-            font-size: 28px;
-            color: #333;
-            margin-bottom: 15px;
-            font-weight: bold;
-        }
-
-        .start-subtitle {
-            font-size: 15px;
-            color: #666;
-            margin-bottom: 40px;
-            line-height: 1.6;
-        }
-
+        .start-title { font-size: 28px; color: #333; margin-bottom: 15px; font-weight: bold; }
+        .start-subtitle { font-size: 15px; color: #666; margin-bottom: 40px; line-height: 1.6; }
         .btn-start {
-            width: 100%;
-            max-width: 320px;
-            font-size: 20px;
-            font-weight: bold;
-            padding: 20px;
-            background-color: #007bff; /* お客様用は青を基調に */
-            color: white;
-            border: none;
-            border-radius: 12px;
-            box-shadow: 0 8px 20px rgba(0,123,255,0.3);
-            cursor: pointer;
-            transition: transform 0.2s;
+            width: 100%; max-width: 320px; font-size: 20px; font-weight: bold; padding: 20px;
+            background-color: #007bff; color: white; border: none; border-radius: 12px;
+            box-shadow: 0 8px 20px rgba(0,123,255,0.3); cursor: pointer; transition: transform 0.2s;
         }
-
-        .btn-start:active {
-            transform: scale(0.95);
-        }
-
-        /* 入力フォーム全体を最初は隠す */
-        #input-view {
-            display: none;
-            width: 100%;
-            padding: 20px;
-            box-sizing: border-box;
-            display: flex; /* Flexboxを維持しつつ最初は非表示にするための工夫 */
-            justify-content: center;
-        }
-        
-        /* JavaScriptで表示を切り替える用のクラス */
-        .hidden-view {
-            display: none !important;
-        }
+        .btn-start:active { transform: scale(0.95); }
+        #input-view { display: none; width: 100%; padding: 20px; box-sizing: border-box; display: flex; justify-content: center; }
+        .hidden-view { display: none !important; }
+        .modal-overlay { height: 100dvh !important; padding: 15px !important; }
+        .qr-content, .modal-content { max-height: 85dvh !important; overflow-y: auto !important; padding: 20px 15px !important; box-sizing: border-box; width: 100%; }
+        #qrcode img { width: 100% !important; max-width: 250px !important; height: auto !important; margin: 0 auto; }
     </style>
 </head>
 <body>
@@ -88,9 +36,12 @@
     <div class="start-title">🎳 ボウリング受付</div>
     <div class="start-subtitle">
         スマートフォンから簡単・事前に<br>
-        受付情報をご入力いただけます。
+        受付情報をご入力いただけます。<br>
+        <span style="color: #d9534f; font-size: 13px; display: inline-block; margin-top: 15px; font-weight: bold; padding: 10px; background: #fdf5f6; border-radius: 8px;">
+            ※本システムは「情報の事前入力」であり、<br>事前のレーン確保(予約)を行うものではありません。
+        </span>
     </div>
-    <button class="btn-start" onclick="startReception()">受付を始める</button>
+    <button class="btn-start" onclick="startReception()">同意して受付を始める</button>
 </div>
 
 <div id="input-view" class="hidden-view">
@@ -110,8 +61,8 @@
             <label class="required">代表者氏名</label>
             <input type="text" id="repName" required placeholder="例：山田 太郎">
 
-            <label class="required">代表者連絡先</label>
-            <input type="tel" id="repContact" required placeholder="例：090-1234-5678" onblur="formatPhone(this)">
+            <label class="required">代表者連絡先(ハイフンなし)</label>
+            <input type="tel" id="repContact" required placeholder="例：09012345678" onblur="formatPhone(this)">
 
             <label id="labelOrgName">学校名・法人名 (プレイヤー区分に学生や法人が含まれる場合必須)</label>
             <input type="text" id="orgName" placeholder="例：〇〇株式会社">
@@ -152,54 +103,64 @@
     <div class="qr-content">
         <p class="qr-title">以下のQRコードを<br>フロント受付にご提示ください</p>
         <div class="qr-id-text" id="displayId">Loading...</div>
-        <div id="qrcode"></div>
+        <div id="qrcode" style="display: flex; justify-content: center; margin-bottom: 10px;"></div>
         
         <div class="qr-alert">
             <strong>【重要なお願い】</strong><br>
             ・上のQRコードを<strong>「長押し」して写真アプリに保存</strong>、または<strong>スクリーンショットを撮影</strong>してください。<br>
-            <span class="text-danger">・受付時にこの画面（QRコードまたはID）のご提示がないと、ご案内をすることができません。</span>
+            <span class="text-danger">・受付時にこの画面のご提示がないと、ご案内をすることができません。</span>
         </div>
         
-        <p class="trademark-note right-align">※「QRコード」は株式会社デンソーウェーブの登録商標です。</p>
+        <p class="trademark-note right-align" style="margin-top: 10px;">※「QRコード」は(株)デンソーウェーブの登録商標です。</p>
         <button class="btn-gray" style="width: 100%; margin-top: 15px;" onclick="location.reload()">最初の画面に戻る</button>
     </div>
 </div>
 
 <script>
-    const GOOGLE_FORM_ACTION_URL = "https://docs.google.com/forms/u/0/d/1HreQl3kqUJfv6aqbPjloXQESsSaEYEM4FV29zNSZf_w/formResponse";
-    const ENTRY_IDS = {
-        repName:    "entry.232845505", 
-        repContact: "entry.377039865",
-        orgName:    "entry.607614426",
-        totalCount: "entry.1436761088",
-        playerCsv:  "entry.434860656",
-        laneCount:  "entry.770778616",
-        gameCount:  "entry.1404226913",
-        uniqueId:   "entry.692126373" 
-    };
+    // 読み込んだ設定を記憶しておく変数
+    let appConfig = null;
 
-    const PUBLIC_KEY_PEM = `-----BEGIN PUBLIC KEY-----
-MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAkcWzmt1W2FHaPVw9cSYJ
-hMoXZDXXT8t3uoTqvJEBVD+OWYr8LpG3IjIHQPYl9pQSwoWj4LeO00Suh7bvzCwN
-GYVPi8o9hZ4IApB+x1yNlp2USS9/2v+pZzCKEBMGJK84v87AThwlPJdt7HJSJdWB
-p30TwLa1ZNAQ9QZmuxTlGtUv+XEoflDicDST63OLJpf2r5uXMUNTN1pbVGvq48ts
-HE+SxAD3cFWJmwngx0dOVZfdfWOaCDNAIVrhv3f+NF90VB2GLNrEnII+t+p4/dOw
-AnmSdfkjyvUTwz2wwr+zdZXf/4kp5aW1N434cLlAREJjgpLpswBNkACgPocrBP9f
-rwIDAQAB
------END PUBLIC KEY-----`;
+    // config.json を外部ファイルから取得する関数
+    async function fetchConfig() {
+        if (appConfig) return appConfig; // 既に読み込み済みならそれを返す
+        
+        try {
+            const response = await fetch('./config.json');
+            if (!response.ok) throw new Error('Config fetch failed');
+            appConfig = await response.json(); // JSONとして解析して保存
+            return appConfig;
+        } catch (error) {
+            console.error("設定ファイルの読み込みに失敗しました:", error);
+            alert("システムエラー: 設定ファイル(config.json)が読み込めません。");
+            throw error;
+        }
+    }
 
-    // ==========================================
-    // 画面切り替え制御
-    // ==========================================
+    // 読み込んだ公開鍵を記憶しておく変数
+    let cachedPublicKeyPem = null;
+
+    // public.pem を外部ファイルから取得する関数
+    async function fetchPublicKeyPem() {
+        if (cachedPublicKeyPem) return cachedPublicKeyPem; // 既に読み込み済みならそれを返す
+        
+        try {
+            const response = await fetch('./public.pem');
+            if (!response.ok) throw new Error('Network response was not ok');
+            cachedPublicKeyPem = await response.text();
+            return cachedPublicKeyPem;
+        } catch (error) {
+            console.error("公開鍵ファイルの読み込みに失敗しました:", error);
+            alert("システムエラー: 公開鍵が読み込めません。サーバー環境で実行しているか確認してください。");
+            throw error;
+        }
+    }
+
     function startReception() {
         document.getElementById('start-view').style.display = 'none';
         document.getElementById('input-view').classList.remove('hidden-view');
         window.scrollTo(0, 0);
     }
 
-    // ==========================================
-    // ネイティブ Web Crypto API による暗号化処理
-    // ==========================================
     async function importPublicKey(pem) {
         const pemHeader = "-----BEGIN PUBLIC KEY-----";
         const pemFooter = "-----END PUBLIC KEY-----";
@@ -223,7 +184,10 @@ rwIDAQAB
     async function encryptData(text) {
         if (!text) return "";
         try {
-            const publicKey = await importPublicKey(PUBLIC_KEY_PEM);
+            // ★ここを変更：ファイルから公開鍵を取得する処理を呼び出す
+            const pemText = await fetchPublicKeyPem();
+            const publicKey = await importPublicKey(pemText);
+            
             const encoder = new TextEncoder();
             const encodedText = encoder.encode(text);
             
@@ -247,9 +211,7 @@ rwIDAQAB
         }
     }
 
-    // ==========================================
-    // 電話番号の自動整形・ハイフン挿入
-    // ==========================================
+    // ★変更：ハイフンなしの半角数字のみに整形する
     function formatPhone(elem) {
         let val = elem.value;
         if (!val) return;
@@ -259,23 +221,9 @@ rwIDAQAB
         });
         
         val = val.replace(/[^0-9]/g, '');
-
-        if (val.length === 11) {
-            val = val.replace(/(\d{3})(\d{4})(\d{4})/, '$1-$2-$3');
-        } else if (val.length === 10) {
-            if (val.startsWith('03') || val.startsWith('06')) {
-                val = val.replace(/(\d{2})(\d{4})(\d{4})/, '$1-$2-$3');
-            } else {
-                val = val.replace(/(\d{3})(\d{3})(\d{4})/, '$1-$2-$3');
-            }
-        }
-        
         elem.value = val;
     }
 
-    // ==========================================
-    // フォーム生成処理
-    // ==========================================
     window.onload = function() { generatePlayerFields(); };
 
     function generatePlayerFields() {
@@ -517,7 +465,9 @@ rwIDAQAB
         function displayFinalImage(canvas, container) {
             const img = document.createElement('img');
             img.src = canvas.toDataURL("image/png");
-            img.style.width = "280px";
+            
+            img.style.width = "100%";
+            img.style.maxWidth = "250px";
             img.style.height = "auto";
             img.style.pointerEvents = "auto"; 
             img.style.userSelect = "none";
@@ -532,38 +482,49 @@ rwIDAQAB
         sendDataToGoogleForm(uniqueId, encryptedName, encryptedContact, encryptedOrgName, totalCount, laneCount, gameCount, csvContent);
     }
 
-   function sendDataToGoogleForm(uid, rName, rContact, oName, tCount, lCount, gCount, csv) {
-        const formData = new FormData();
-        formData.append(ENTRY_IDS.uniqueId, uid);
-        formData.append(ENTRY_IDS.repName, rName);
-        formData.append(ENTRY_IDS.repContact, rContact);
-        formData.append(ENTRY_IDS.orgName, oName);
-        formData.append(ENTRY_IDS.totalCount, tCount);
-        formData.append(ENTRY_IDS.laneCount, lCount);
-        formData.append(ENTRY_IDS.gameCount, gCount);
-        formData.append(ENTRY_IDS.playerCsv, csv);
+   async function sendDataToGoogleForm(uid, rName, rContact, oName, tCount, lCount, gCount, csv) {
+        try {
+            // ★ 送信直前に設定ファイルを読み込む（既に読み込み済みの場合はキャッシュが使われます）
+            const config = await fetchConfig();
+            
+            const formData = new FormData();
+            formData.append(config.ENTRY_IDS.uniqueId, uid);
+            formData.append(config.ENTRY_IDS.repName, rName);
+            formData.append(config.ENTRY_IDS.repContact, rContact);
+            formData.append(config.ENTRY_IDS.orgName, oName);
+            formData.append(config.ENTRY_IDS.totalCount, tCount);
+            formData.append(config.ENTRY_IDS.laneCount, lCount);
+            formData.append(config.ENTRY_IDS.gameCount, gCount);
+            formData.append(config.ENTRY_IDS.playerCsv, csv);
 
-        fetch(GOOGLE_FORM_ACTION_URL, {
-            method: 'POST',
-            mode: 'no-cors',
-            body: formData
-        })
-        .then(() => {
-            closeConfirmModal();
-            document.getElementById('qrModal').style.display = 'flex';
-            
+            fetch(config.GOOGLE_FORM_ACTION_URL, {
+                method: 'POST',
+                mode: 'no-cors',
+                body: formData
+            })
+            .then(() => {
+                closeConfirmModal();
+                document.getElementById('qrModal').style.display = 'flex';
+                
+                const btn = document.getElementById("confirmSubmitBtn");
+                btn.disabled = false;
+                btn.innerText = "確定して送信する";
+            })
+            .catch((error) => {
+                console.error("送信に失敗しました:", error);
+                alert("通信エラーが発生しました。電波の良いところで再度お試しください。");
+                
+                const btn = document.getElementById("confirmSubmitBtn");
+                btn.disabled = false;
+                btn.innerText = "確定して送信する";
+            });
+
+        } catch (error) {
+            // 設定ファイルの読み込み失敗などのエラーハンドリング
             const btn = document.getElementById("confirmSubmitBtn");
             btn.disabled = false;
             btn.innerText = "確定して送信する";
-        })
-        .catch((error) => {
-            console.error("送信に失敗しました:", error);
-            alert("通信エラーが発生しました。電波の良いところで再度お試しください。");
-            
-            const btn = document.getElementById("confirmSubmitBtn");
-            btn.disabled = false;
-            btn.innerText = "確定して送信する";
-        });
+        }
     }
 </script>
 
